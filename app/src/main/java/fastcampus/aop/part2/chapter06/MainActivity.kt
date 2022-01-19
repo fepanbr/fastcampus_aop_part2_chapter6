@@ -1,5 +1,6 @@
 package fastcampus.aop.part2.chapter06
 
+import android.media.SoundPool
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.CountDownTimer
@@ -20,6 +21,11 @@ class MainActivity : AppCompatActivity() {
         findViewById(R.id.seekBar)
     }
 
+    private val soundPool = SoundPool.Builder().build()
+
+    private var tickingSoundId: Int? = null
+    private var bellSoundId: Int? = null
+
     private var currentCountDownTimer: CountDownTimer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,12 +33,31 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         bindView()
+        initSounds()
+    }
+
+    override fun onPause() {
+        super.onPause()
+
+        soundPool.autoPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        soundPool.autoResume()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        soundPool.release()
     }
 
     private fun bindView() {
         seekBar
             .setOnSeekBarChangeListener(
-                object: SeekBar.OnSeekBarChangeListener {
+                object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(
                         seekBar: SeekBar?,
                         progress: Int,
@@ -45,39 +70,74 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                        currentCountDownTimer?.cancel()
-                        currentCountDownTimer = null
+                        stopCountDown()
+
                     }
 
                     override fun onStopTrackingTouch(seekBar: SeekBar?) {
                         seekBar ?: return
 
-                        currentCountDownTimer = createCountDownTimer(seekBar.progress * 60 * 1000L)
-                        currentCountDownTimer?.start()
+                        if (seekBar.progress == 0) {
+                            stopCountDown()
+                        } else {
+                            startCountDown()
+                        }
                     }
                 }
             )
     }
 
+    private fun initSounds() {
+        tickingSoundId = soundPool.load(this, R.raw.timer_ticking, 1)
+        bellSoundId = soundPool.load(this, R.raw.timer_bell, 1)
+    }
+
     private fun createCountDownTimer(initialMillis: Long) =
-         object: CountDownTimer(initialMillis, 1000L) {
+        object : CountDownTimer(initialMillis, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
                 updateRemainTime(millisUntilFinished)
                 updateSeekbar(millisUntilFinished)
             }
 
             override fun onFinish() {
-                updateRemainTime(0)
-                updateSeekbar(0)
+                completedCountDown()
             }
 
+        }
+
+    private fun startCountDown() {
+        currentCountDownTimer = createCountDownTimer(seekBar.progress * 60 * 1000L)
+        currentCountDownTimer?.start()
+
+        tickingSoundId?.let { soundId ->
+            soundPool.play(soundId, 1F, 1F, 0, -1, 1F)
+        }
     }
+
+    private fun completedCountDown() {
+        updateRemainTime(0)
+        updateSeekbar(0)
+
+        soundPool.autoPause()
+        bellSoundId?.let { soundId ->
+            {
+                soundPool.play(soundId, 1F, 1F, 0, 0, 1F)
+
+            }
+        }
+    }
+
+    private fun stopCountDown() {
+        currentCountDownTimer?.cancel()
+        currentCountDownTimer = null
+        soundPool.autoPause()
+    }c
 
     private fun updateRemainTime(remainMillis: Long) {
 
         val remainSeconds = remainMillis / 1000
 
-        remainMinutesTextView.text = "%02d".format(remainSeconds / 60)
+        remainMinutesTextView.text = "%02d'".format(remainSeconds / 60)
         remainSecondsTextView.text = "%02d".format(remainSeconds % 60)
     }
 
